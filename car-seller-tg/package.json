@@ -1,0 +1,15 @@
+{
+  "name": "car-seller-tg",
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^11.3.0"
+  }
+}

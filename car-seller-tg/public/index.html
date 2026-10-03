@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Car Seller</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box;
+      font-family:-apple-system,'Segoe UI',sans-serif;
+      -webkit-tap-highlight-color:transparent; }
+  body {
+    background:var(--tg-theme-bg-color,#1a1a2e);
+    color:var(--tg-theme-text-color,#fff);
+    min-height:100vh; padding:12px; padding-bottom:90px;
+  }
+  h1 { text-align:center; font-size:1.5rem; margin-bottom:10px; color:#e94560; }
+  .stats { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px; }
+  .stat { background:var(--tg-theme-secondary-bg-color,rgba(255,255,255,0.08));
+          border-radius:12px; padding:10px; text-align:center; }
+  .stat .label { font-size:0.7rem; opacity:0.7; }
+  .stat .value { font-size:1.05rem; font-weight:700; color:#4ade80; margin-top:2px; }
+  .stat.prem .value { color:#fbbf24; }
+
+  .tabs { display:flex; gap:5px; margin-bottom:12px; }
+  .tab { flex:1; padding:9px 4px; border-radius:10px; text-align:center;
+         background:var(--tg-theme-secondary-bg-color,rgba(255,255,255,0.08));
+         font-weight:600; font-size:0.78rem; cursor:pointer; transition:0.15s; }
+  .tab.active { background:#e94560; color:#fff; }
+
+  .panel { display:none; }
+  .panel.active { display:block; }
+
+  .cards { display:grid; gap:10px; }
+  .card { background:var(--tg-theme-secondary-bg-color,rgba(255,255,255,0.06));
+          border-radius:14px; padding:12px; display:flex; align-items:center; gap:12px; }
+  .card .emoji { font-size:1.9rem; }
+  .card .info { flex:1; min-width:0; }
+  .card .name { font-weight:700; font-size:0.95rem; }
+  .card .sub { font-size:0.75rem; opacity:0.7; margin-top:2px; }
+  .card .price { color:#4ade80; font-weight:700; font-size:0.9rem; margin-top:3px; }
+  .card button { padding:8px 12px; border:none; border-radius:8px;
+                 background:#e94560; color:#fff; font-weight:600;
+                 cursor:pointer; font-size:0.8rem; white-space:nowrap; }
+  .card button:disabled { background:rgba(255,255,255,0.15); color:#888; }
+  .card button.gold { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#1a1a2e; }
+
+  .donate-btn { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#1a1a2e;
+                padding:11px; border-radius:12px; text-align:center;
+                font-weight:700; margin-bottom:12px; cursor:pointer; font-size:0.9rem; }
+
+  .log { margin-top:12px; background:rgba(0,0,0,0.3); border-radius:10px; padding:10px;
+         max-height:100px; overflow-y:auto; font-size:0.78rem; }
+  .log div { padding:2px 0; }
+  .log .good { color:#4ade80; }
+  .log .bad { color:#f87171; }
+  .log .prem { color:#fbbf24; }
+
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,0.7);
+              display:none; justify-content:center; align-items:flex-end; z-index:100; }
+  .modal-bg.show { display:flex; }
+  .modal { background:var(--tg-theme-bg-color,#1a1a2e); width:100%; max-width:500px;
+           border-radius:20px 20px 0 0; padding:20px; max-height:80vh; overflow-y:auto;
+           animation:slideUp 0.25s; }
+  @keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
+  .modal h2 { margin-bottom:15px; text-align:center; color:#fbbf24; font-size:1.2rem; }
+  .donate-item { background:rgba(255,255,255,0.06); border-radius:12px; padding:12px;
+                 display:flex; align-items:center; gap:12px; margin-bottom:8px;
+                 cursor:pointer; transition:0.15s; }
+  .donate-item:active { transform:scale(0.98); }
+  .donate-item .emoji { font-size:1.8rem; }
+  .donate-item .info { flex:1; }
+  .donate-item .title { font-weight:700; font-size:0.95rem; }
+  .donate-item .desc { font-size:0.72rem; opacity:0.7; margin-top:2px; }
+  .donate-item .stars { background:linear-gradient(135deg,#fbbf24,#f59e0b);
+                        color:#1a1a2e; padding:6px 10px; border-radius:8px;
+                        font-weight:700; font-size:0.82rem; white-space:nowrap; }
+  .close-btn { width:100%; padding:12px; margin-top:10px;
+               background:rgba(255,255,255,0.1); border:none;
+               border-radius:10px; color:inherit; font-weight:600;
+               cursor:pointer; font-size:0.95rem; }
+
+  /* Ежедневный бонус */
+  .daily-card { background:linear-gradient(135deg,#e94560,#c81e4a);
+                border-radius:14px; padding:16px; text-align:center; margin-bottom:12px; }
+  .daily-card h3 { font-size:1rem; margin-bottom:6px; }
+  .daily-card .reward { font-size:1.6rem; font-weight:800; color:#fff; margin:8px 0; }
+  .daily-card button { background:#fff; color:#e94560; border:none;
+                       padding:10px 24px; border-radius:10px;
+                       font-weight:700; cursor:pointer; font-size:0.9rem; }
+  .daily-card button:disabled { opacity:0.5; cursor:not-allowed; }
+  .streak { display:flex; justify-content:center; gap:6px; margin-top:10px; }
+  .streak-dot { width:22px; height:22px; border-radius:50%;
+                background:rgba(255,255,255,0.3); display:flex;
+                align-items:center; justify-content:center; font-size:0.7rem; font-weight:700; }
+  .streak-dot.done { background:#fff; color:#e94560; }
+
+  /* Лидерборд */
+  .top-row { display:flex; align-items:center; gap:12px;
+             background:var(--tg-theme-secondary-bg-color,rgba(255,255,255,0.06));
+             border-radius:12px; padding:12px; margin-bottom:8px; }
+  .top-row.me { border:2px solid #e94560; background:rgba(233,69,96,0.15); }
+  .top-row .rank { font-size:1.3rem; font-weight:800; width:40px; text-align:center; }
+  .top-row .rank.gold { color:#fbbf24; }
+  .top-row .rank.silver { color:#c0c0c0; }
+  .top-row .rank.bronze { color:#cd7f32; }
+  .top-row .info { flex:1; }
+  .top-row .name { font-weight:700; font-size:0.95rem; }
+  .top-row .earned { font-size:0.8rem; color:#4ade80; margin-top:2px; }
+  .ref-box { background:var(--tg-theme-secondary-bg-color,rgba(255,255,255,0.06));
+             border-radius:12px; padding:14px; margin-bottom:12px; }
+  .ref-box .label { font-size:0.75rem; opacity:0.7; margin-bottom:6px; }
+  .ref-box .link { background:rgba(0,0,0,0.3); border-radius:8px; padding:10px;
+                   font-family:monospace; font-size:0.75rem; word-break:break-all;
+                   cursor:pointer; }
+  .ref-box .stat-line { display:flex; justify-content:space-between;
+                        padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.08); }
+  .ref-box .stat-line:last-child { border-bottom:none; }
+</style>
+</head>
+<body>
+
+<h1>🚗 Car Seller</h1>
+
+<div class="stats">
+  <div class="stat"><div class="label">💰 Деньги</div><div class="value" id="money">$0</div></div>
+  <div class="stat"><div class="label">📈 Доход/сек</div><div class="value" id="income">$0</div></div>
+  <div class="stat"><div class="label">🚙 Машин</div><div class="value" id="cars">0</div></div>
+  <div class="stat prem"><div class="label">👑 Premium</div><div class="value" id="premVal">—</div></div>
+</div>
+
+<div class="donate-btn" onclick="openDonate()">💎 ДОНАТ-МАГАЗИН — Telegram Stars</div>
+
+<div class="tabs">
+  <div class="tab active" data-panel="shop">🏪</div>
+  <div class="tab" data-panel="garage">🏠</div>
+  <div class="tab" data-panel="upgrades">⚡</div>
+  <div class="tab" data-panel="bonus">🎁</div>
+  <div class="tab" data-panel="top">🏆</div>
+</div>
+
+<div class="panel active" id="shop"><div class="cards" id="shopCards"></div></div>
+<div class="panel" id="garage"><div class="cards" id="garageCards"></div></div>
+<div class="panel" id="upgrades"><div class="cards" id="upgradeCards"></div></div>
+<div class="panel" id="bonus">
+  <div class="daily-card" id="dailyCard"></div>
+</div>
+<div class="panel" id="top">
+  <div id="refBox"></div>
+  <div id="topList"></div>
+</div>
+
+<div class="log" id="log"></div>
+
+<div class="modal-bg" id="donateModal">
+  <div class="modal">
+    <h2>💎 Донат-магазин</h2>
+    <div id="donateItems"></div>
+    <button class="close-btn" onclick="closeDonate()">Закрыть</button>
+  </div>
+</div>
+
+<script>
+// ===================== TG =====================
+const tg = window.Telegram?.WebApp;
+const initData = tg?.initData || '';
+if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor('#1a1a2e'); tg.setBackgroundColor('#1a1a2e'); }
+
+// ===================== СОСТОЯНИЕ =====================
+const state = {
+  money: 0,
+  cars: {},
+  upgrades: { incomeBoost: 0, autoSeller: 0, marketing: 0 },
+  premium: { active: false, expires: 0 },
+  multiplier: { active: false, expires: 0 },
+  refCode: '',
+  refCount: 0,
+  totalEarned: 0,
+  pendingSync: 0   // деньги, накопленные локально, ещё не отправленные на сервер
+};
+
+const CARS = [
+  { id:'zaz',     name:'ЗАЗ-968',       emoji:'🚙', price:100,     income:1 },
+  { id:'lada',    name:'Лада 2107',     emoji:'🚗', price:500,     income:5 },
+  { id:'golf',    name:'VW Golf',       emoji:'🚘', price:2500,    income:22 },
+  { id:'bmw',     name:'BMW M3',        emoji:'🏎️', price:12000,   income:95 },
+  { id:'tesla',   name:'Tesla Model S', emoji:'⚡', price:50000,   income:380 },
+  { id:'porsche', name:'Porsche 911',   emoji:'🏁', price:180000,  income:1200 },
+  { id:'lambo',   name:'Lamborghini',   emoji:'🔥', price:750000,  income:5000 },
+  { id:'bugatti', name:'Bugatti',       emoji:'💎', price:3000000, income:22000 }
+];
+
+const UPGRADES = [
+  { id:'incomeBoost', name:'Тюнинг',      emoji:'⚙️', basePrice:1000, desc:'+25% дохода', max:10 },
+  { id:'marketing',   name:'Реклама',     emoji:'📢', basePrice:2000, desc:'-5% цены',    max:10 },
+  { id:'autoSeller',  name:'Автопродажа', emoji:'🤖', basePrice:5000, desc:'Доход ×2',    max:1 }
+];
+
+const DONATE_ITEMS = {
+  premium:      { emoji:'👑', title:'Premium 24ч',     desc:'+50% дохода, авто-продажа', stars:250 },
+  multiplier2x: { emoji:'✖️', title:'Множитель x2',     desc:'×2 доход на 1 час',          stars:100 },
+  startPack:    { emoji:'🎁', title:'Стартовый набор',  desc:'+$100,000',                  stars:50 },
+  megaPack:     { emoji:'💎', title:'Мега-набор',       desc:'Premium + x2 + $500,000',    stars:400 }
+};
+
+// ===================== API =====================
+async function api(path, body = {}) {
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, initData })
+    });
+    if (!res.ok) throw new Error(res.status);
+    return await res.json();
+  } catch (e) {
+    console.error('API', path, e);
+    return null;
+  }
+}
+
+// ===================== УТИЛИТЫ =====================
+function fmt(n) {
+  if (n >= 1e9) return '$' + (n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(2) + 'K';
+  return '$' + Math.floor(n);
+}
+function log(text, type = '') {
+  const el = document.getElementById('log');
+  const div = document.createElement('div');
+  div.className = type;
+  div.textContent = '> ' + text;
+  el.prepend(div);
+  while (el.children.length > 20) el.removeChild(el.lastChild);
+}
+function haptic(s) { try { tg?.HapticFeedback?.impactOccurred(s); } catch(e){} }
+
+// ===================== ДОХОД =====================
+function getIncomePerCar(car) {
+  let m = 1 + state.upgrades.incomeBoost * 0.25;
+  if (state.premium.active) m *= 1.5;
+  if (state.multiplier.active) m *= 2;
+  return car.income * m;
+}
+function getTotalIncome() {
+  let t = 0;
+  for (const id in state.cars) {
+    const c = CARS.find(x => x.id === id);
+    if (c) t += getIncomePerCar(c) * state.cars[id];
+  }
+  return t;
+}
+function getCarPrice(car) {
+  return Math.floor(car.price * (1 - Math.min(state.upgrades.marketing * 0.05, 0.5)));
+}
+
+// ===================== СИНХРОНИЗАЦИЯ =====================
+function pushEarnings() {
+  if (state.pendingSync < 1) return;
+  const amount = Math.floor(state.pendingSync);
+  state.pendingSync -= amount;
+  api('/api/sync-earnings', { amount });
+}
+
+// ===================== РЕНДЕР =====================
+function render() {
+  document.getElementById('money').textContent = fmt(state.money);
+  let total = 0;
+  for (const id in state.cars) total += state.cars[id];
+  document.getElementById('cars').textContent = total;
+  document.getElementById('income').textContent = fmt(getTotalIncome()) + '/с';
+
+  const premVal = document.getElementById('premVal');
+  if (state.premium.active) {
+    const left = Math.max(0, Math.ceil((state.premium.expires - Date.now()) / 1000));
+    const h = Math.floor(left / 3600), m = Math.floor((left % 3600) / 60);
+    premVal.textContent = h > 0 ? `${h}ч ${m}м` : `${m}м`;
+  } else premVal.textContent = '—';
+
+  renderShop(); renderGarage(); renderUpgrades();
+}
+
+function renderShop() {
+  const el = document.getElementById('shopCards');
+  el.innerHTML = CARS.map(car => {
+    const price = getCarPrice(car);
+    const owned = state.cars[car.id] || 0;
+    const can = state.money >= price;
+    return `<div class="card">
+      <div class="emoji">${car.emoji}</div>
+      <div class="info">
+        <div class="name">${car.name}</div>
+        <div class="sub">Доход: ${fmt(getIncomePerCar(car))}/с · В гараже: ${owned}</div>
+        <div class="price">${fmt(price)}</div>
+      </div>
+      <button ${can ? '' : 'disabled'} onclick="buyCar('${car.id}')">${can ? 'Купить' : 'Мало'}</button>
+    </div>`;
+  }).join('');
+}
+
+function renderGarage() {
+  const el = document.getElementById('garageCards');
+  const owned = CARS.filter(c => state.cars[c.id] > 0);
+  if (!owned.length) {
+    el.innerHTML = '<div class="card" style="justify-content:center;opacity:0.6;padding:30px">Гараж пуст</div>';
+    return;
+  }
+  el.innerHTML = owned.map(car => `
+    <div class="card">
+      <div class="emoji">${car.emoji}</div>
+      <div class="info">
+        <div class="name">${car.name} × ${state.cars[car.id]}</div>
+        <div class="sub">${fmt(getIncomePerCar(car) * state.cars[car.id])}/с</div>
+        <div class="price">Продажа: ${fmt(Math.floor(getCarPrice(car) * 0.7))}</div>
+      </div>
+      <button onclick="sellCar('${car.id}')">Продать</button>
+    </div>`).join('');
+}
+
+function renderUpgrades() {
+  const el = document.getElementById('upgradeCards');
+  el.innerHTML = UPGRADES.map(up => {
+    const lvl = state.upgrades[up.id] || 0;
+    const price = Math.floor(up.basePrice * Math.pow(1.8, lvl));
+    const maxed = lvl >= up.max;
+    const can = !maxed && state.money >= price;
+    return `<div class="card">
+      <div class="emoji">${up.emoji}</div>
+      <div class="info">
+        <div class="name">${up.name}${lvl > 0 ? ` · ур.${lvl}` : ''}</div>
+        <div class="sub">${up.desc}</div>
+        <div class="price">${maxed ? 'МАКС' : fmt(price)}</div>
+      </div>
+      <button ${maxed || !can ? 'disabled' : ''} onclick="buyUpgrade('${up.id}')">
+        ${maxed ? 'Макс' : can ? 'Улучшить' : 'Мало'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+// ===================== ДЕЙСТВИЯ =====================
+async function buyCar(id) {
+  const car = CARS.find(c => c.id === id);
+  const price = getCarPrice(car);
+  if (state.money < price) return;
+  state.money -= price;
+  state.cars[id] = (state.cars[id] || 0) + 1;
+  log(`Куплена ${car.name}`, 'good'); haptic('light');
+  render();
+  await api('/api/buy-car', { carId: id, carPrice: price });
+}
+
+async function sellCar(id) {
+  if (!state.cars[id]) return;
+  const car = CARS.find(c => c.id === id);
+  const price = Math.floor(getCarPrice(car) * 0.7);
+  state.cars[id]--;
+  if (state.cars[id] <= 0) delete state.cars[id];
+  state.money += price;
+  log(`Продана ${car.name} за ${fmt(price)}`, 'bad'); haptic('light');
+  render();
+  await api('/api/sell-car', { carId: id, sellPrice: price });
+}
+
+async function buyUpgrade(id) {
+  const up = UPGRADES.find(u => u.id === id);
+  const lvl = state.upgrades[id] || 0;
+  const price = Math.floor(up.basePrice * Math.pow(1.8, lvl));
+  if (state.money < price || lvl >= up.max) return;
+  state.money -= price;
+  state.upgrades[id] = lvl + 1;
+  log(`Улучшение "${up.name}" · ур.${lvl + 1}`, 'prem'); haptic('medium');
+  render();
+  await api('/api/buy-upgrade', { upId: id, price, newLevel: lvl + 1 });
+}
+
+// ===================== ЕЖЕДНЕВНЫЙ БОНУС =====================
+async function renderDaily() {
+  const el = document.getElementById('dailyCard');
+  const res = await api('/api/daily-status');
+  if (!res) { el.innerHTML = '<h3>🎁 Бонус</h3><p>Ошибка загрузки</p>'; return; }
+  const streak = res.streak || 0;
+  const dots = Array.from({length: 7}, (_, i) =>
+    `<div class="streak-dot ${i < streak ? 'done' : ''}">${i+1}</div>`).join('');
+  const nextReward = 1000 * (streak + 1);
+  if (res.canClaim) {
+    el.innerHTML = `
+      <h3>🎁 Ежедневный бонус</h3>
+      <div class="reward">+${fmt(nextReward)}</div>
+      <button onclick="claimDaily()">ЗАБРАТЬ</button>
+      <div class="streak">${dots}</div>`;
+  } else {
+    const h = Math.floor(res.waitSec / 3600), m = Math.floor((res.waitSec % 3600) / 60);
+    el.innerHTML = `
+      <h3>🎁 Ежедневный бонус</h3>
+      <div class="reward">${fmt(nextReward)}</div>
+      <button disabled>Через ${h}ч ${m}м</button>
+      <div class="streak">${dots}</div>`;
+  }
+}
+
+async function claimDaily() {
+  const res = await api('/api/daily');
+  if (res?.ok) {
+    state.money += res.reward;
+    log(`🎁 Ежедневный бонус: +${fmt(res.reward)} (стрик ${res.streak})`, 'prem');
+    haptic('heavy');
+    render(); renderDaily();
+  }
+}
+
+// ===================== РЕФЕРАЛЫ + ТОП =====================
+async function renderTop() {
+  const res = await api('/api/leaderboard');
+  if (!res) return;
+  const { top, myRank } = res;
+
+  const refRes = await api('/api/referrals');
+
+  // Реф-блок
+  const refBox = document.getElementById('refBox');
+  if (refRes) {
+    refBox.innerHTML = `
+      <div class="ref-box">
+        <div class="label">ТВОЯ РЕФ-ССЫЛКА (нажми, чтобы скопировать)</div>
+        <div class="link" onclick="copyRef('${refRes.link}')">${refRes.link}</div>
+        <div class="stat-line"><span>👥 Приглашено</span><b>${refRes.count}</b></div>
+        <div class="stat-line"><span>💰 Бонус за друга</span><b>${fmt(refRes.bonusPerRef)}</b></div>
+        <div class="stat-line"><span>💎 % от его донатов</span><b>10%</b></div>
+      </div>
+      <div class="ref-box">
+        <div class="label">ПОДЕЛИТЬСЯ</div>
+        <button class="gold" style="width:100%;padding:12px;border:none;border-radius:10px;font-weight:700;font-size:0.9rem;"
+          onclick="shareRef('${refRes.link}')">📤 Пригласить друзей</button>
+      </div>
+    `;
+  }
+
+  // Топ
+  const medals = ['🥇','🥈','🥉'];
+  const topList = document.getElementById('topList');
+  topList.innerHTML = top.map((p, i) => {
+    const name = p.first_name || p.username || `Игрок${p.user_id}`;
+    const isMe = p.user_id === (tg?.initDataUnsafe?.user?.id);
+    let rankClass = '';
+    if (i === 0) rankClass = 'gold';
+    else if (i === 1) rankClass = 'silver';
+    else if (i === 2) rankClass = 'bronze';
+    return `<div class="top-row ${isMe ? 'me' : ''}">
+      <div class="rank ${rankClass}">${medals[i] || (i+1)}</div>
+      <div class="info">
+        <div class="name">${name}${isMe ? ' ⬅️' : ''}</div>
+        <div class="earned">${fmt(p.total_earned)}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  if (myRank > top.length) {
+    topList.innerHTML += `<div class="top-row me">
+      <div class="rank">#${myRank}</div>
+      <div class="info"><div class="name">Ты</div>
+      <div class="earned">${fmt(state.totalEarned)}</div></div>
+    </div>`;
+  }
+}
+
+function copyRef(link) {
+  navigator.clipboard?.writeText(link).then(() => {
+    log('📋 Ссылка скопирована', 'good');
+    haptic('light');
+  });
+}
+
+function shareRef(link) {
+  const text = `🚗 Играю в Car Seller — построй автоимперию! Присоединяйся:`;
+  const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+  tg?.openTelegramLink?.(url) || window.open(url);
+}
+
+// ===================== ДОНАТ =====================
+function openDonate() {
+  const el = document.getElementById('donateItems');
+  el.innerHTML = Object.entries(DONATE_ITEMS).map(([key, item]) => `
+    <div class="donate-item" onclick="buyDonate('${key}')">
+      <div class="emoji">${item.emoji}</div>
+      <div class="info">
+        <div class="title">${item.title}</div>
+        <div class="desc">${item.desc}</div>
+      </div>
+      <div class="stars">${item.stars} ⭐</div>
+    </div>`).join('');
+  document.getElementById('donateModal').classList.add('show');
+  haptic('light');
+}
+function closeDonate() { document.getElementById('donateModal').classList.remove('show'); }
+
+async function buyDonate(itemKey) {
+  if (!initData) { alert('Открой через Telegram!'); return; }
+  haptic('medium');
+  const res = await api('/api/create-invoice', { itemKey });
+  if (res?.link) {
+    tg.openInvoice(res.link, (status) => {
+      if (status === 'paid') {
+        log('✅ Оплата получена!', 'prem');
+        setTimeout(claimPurchases, 1000);
+      } else if (status === 'failed') log('❌ Ошибка оплаты', 'bad');
+    });
+  } else alert('Ошибка создания счёта');
+}
+
+async function claimPurchases() {
+  const res = await api('/api/claim');
+  if (res?.items?.length) {
+    for (const { itemKey } of res.items) applyReward(itemKey);
+    render();
+  }
+}
+
+function applyReward(itemKey) {
+  const now = Date.now();
+  const HOUR = 3600 * 1000, DAY = 24 * HOUR;
+  switch (itemKey) {
+    case 'premium':
+      state.premium.active = true;
+      state.premium.expires = Math.max(state.premium.expires, now) + DAY;
+      log('👑 Premium активирован на 24ч!', 'prem'); break;
+    case 'multiplier2x':
+      state.multiplier.active = true;
+      state.multiplier.expires = Math.max(state.multiplier.expires, now) + HOUR;
+      log('✖️ Множитель x2 активирован на 1ч!', 'prem'); break;
+    case 'startPack':
+      state.money += 100000;
+      log('🎁 Получено +$100,000!', 'prem'); break;
+    case 'megaPack':
+      state.premium.active = true;
+      state.premium.expires = Math.max(state.premium.expires, now) + DAY;
+      state.multiplier.active = true;
+      state.multiplier.expires = Math.max(state.multiplier.expires, now) + HOUR;
+      state.money += 500000;
+      log('💎 Мега-набор получен!', 'prem'); break;
+  }
+  haptic('heavy');
+}
+
+// ===================== ТАБЫ =====================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+    haptic('light');
+    if (tab.dataset.panel === 'bonus') renderDaily();
+    if (tab.dataset.panel === 'top') renderTop();
+  });
+});
+
+// ===================== ИГРОВОЙ ЦИКЛ =====================
+let lastTick = Date.now();
+function tick() {
+  const now = Date.now();
+  const dt = (now - lastTick) / 1000;
+  lastTick = now;
+
+  const inc = getTotalIncome();
+  if (inc > 0) {
+    let gain = inc * dt;
+    // Авто-продажа: ×2 бонус
+    if (state.premium.active && state.upgrades.autoSeller) gain *= 2;
+    state.money += gain;
+    state.totalEarned += gain;
+    state.pendingSync += gain;
+  }
+  // Обновляем истечение бустов
+  if (state.premium.active && now > state.premium.expires) {
+    state.premium.active = false;
+    log('👑 Premium истёк', 'bad');
+  }
+  if (state.multiplier.active && now > state.multiplier.expires) {
+    state.multiplier.active = false;
+    log('✖️ Множитель истёк', 'bad');
+  }
+  render();
+}
+
+// ===================== СТАРТ =====================
+async function init() {
+  const data = await api('/api/state');
+  if (!data) {
+    log('❌ Ошибка загрузки. Открой через Telegram!', 'bad');
+    return;
+  }
+  state.money = data.money;
+  state.cars = data.cars;
+  state.upgrades = data.upgrades;
+  state.premium = data.premium;
+  state.multiplier = data.multiplier;
+  state.refCode = data.refCode;
+  state.refCount = data.refCount;
+  state.totalEarned = data.totalEarned;
+
+  render();
+  log('Добро пожаловать в Car Seller!', 'good');
+
+  // Забираем неполученные покупки
+  await claimPurchases();
+
+  // Периодическая синхронизация
+  setInterval(pushEarnings, 3000);
+  setInterval(() => api('/api/state').then(d => {
+    if (d) state.totalEarned = d.totalEarned;
+  }), 10000);
+
+  // Тикаем
+  setInterval(tick, 100);
+}
+
+init();
+
+document.getElementById('donateModal').addEventListener('click', e => {
+  if (e.target.id === 'donateModal') closeDonate();
+});
+
+window.addEventListener('beforeunload', pushEarnings);
+</script>
+</body>
+</html>
